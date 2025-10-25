@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Parqueadero Universitario
 
 Sistema de reservas de parqueadero para la universidad, con autenticación Firebase y almacenamiento en MySQL.
@@ -34,3 +35,6 @@ Sistema de reservas de parqueadero para la universidad, con autenticación Fireb
 ## Tecnologías
 - Frontend: HTML, CSS, JavaScript, Firebase
 - Backend: Node.js, Express, MySQL
+=======
+# parqueadero-universitario
+>>>>>>> 3ae97c3c7e24887586331ebadad208f053d5cb63
