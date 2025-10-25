@@ -1,0 +1,27 @@
+{
+  "type": "module",
+  "name": "parqueadero-universitario",
+  "version": "1.0.0",
+  "description": "Sistema de reservas de parqueadero para la universidad.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "live-server src",
+    "build": "echo 'Build step not defined'",
+    "test": "echo 'No tests defined'"
+  },
+  "keywords": [
+    "parqueadero",
+    "reservas",
+    "universidad",
+    "parking",
+    "reservation"
+  ],
+  "author": "Tu Nombre",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "live-server": "^1.2.1",
+    "mysql2": "^3.15.3"
+  }
+}

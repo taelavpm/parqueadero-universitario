@@ -1,0 +1,303 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Arial', sans-serif;
+  background: linear-gradient(135deg, #067d0c9f 0%, #f1f5f9 100%);
+  min-height: 100vh;
+  color: #043117;
+}
+
+.container {
+  max-width: 900px;
+  margin: 48px auto 0 auto;
+  background: rgba(255,255,255,0.85);
+  border-radius: 24px;
+  box-shadow: 0 8px 40px #2563eb22;
+  padding: 36px 28px 40px 28px;
+  position: relative;
+}
+
+h1 {
+  color: #0a591f;
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 0.2em;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 8px #2563eb11;
+}
+
+p {
+  color: #648b67;
+  font-size: 1.1rem;
+  margin-bottom: 1.5em;
+}
+
+.stats {
+  display: flex;
+  gap: 28px;
+  margin: 32px 0 28px 0;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px #aae6b7c2;
+  padding: 28px 38px 18px 38px;
+  min-width: 180px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.card.green { border-color: #22c55e33; }
+.card.orange { border-color: #f59e4233; }
+.card.red { border-color: #ef444433; }
+
+.card i {
+  margin-bottom: 10px;
+  font-size: 2rem;
+  background: #f1f5f9;
+  border-radius: 50%;
+  padding: 10px;
+  box-shadow: 0 2px 8px #2563eb11;
+}
+
+.card.green i { color: #22c55e; }
+.card.green span { color: #22c55e; font-weight: 700; font-size: 1.7rem; }
+.card.orange i { color: #f59e42; }
+.card.orange span { color: #f59e42; font-weight: 700; font-size: 1.7rem; }
+.card.red i { color: #ef4444; }
+.card.red span { color: #ef4444; font-weight: 700; font-size: 1.7rem; }
+
+.card p {
+  color: #222;
+  font-weight: 600;
+  margin-bottom: 0.2em;
+  font-size: 1.1rem;
+}
+
+.card:hover {
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 8px 32px #2563eb22;
+}
+
+.reserva-fecha {
+  margin-bottom: 18px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 2px 8px #2563eb11;
+}
+
+.reserva-fecha label {
+  color: #0c5e21;
+  font-size: 1.08rem;
+}
+
+.reserva-fecha input[type="datetime-local"] {
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.reserva-fecha input[type="datetime-local"]:focus {
+  border-color: #25eb2c;
+  box-shadow: 0 0 0 2px #05390f22;
+}
+
+.buttons {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.buttons button {
+  background: #afecb7;
+  color: #25eb25;
+  border: none;
+  border-radius: 14px;
+  padding: 13px 32px 13px 44px;
+  font-size: 1.08rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px #05360a11;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.1s;
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.buttons button.primary {
+  background: linear-gradient(90deg, #0f6418 60%, #afeda5 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px #2563eb22;
+}
+
+.buttons button.primary:hover,
+.buttons button.primary:focus {
+  background: linear-gradient(90deg, #0c6011 60%, #a7f1bd 100%);
+}
+
+.buttons button:hover,
+.buttons button:focus {
+  background: #f1f5f9;
+  color: #094a14;
+  transform: translateY(-2px) scale(1.03);
+}
+
+.buttons button.pressed {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px #0001;
+}
+
+.qr {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 4px 24px #2563eb11;
+  padding: 38px 0 38px 0;
+  margin-top: 24px;
+  text-align: center;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+
+  /* ✅ Ajuste para centrar bien el QR */
+  display: flex;
+  flex-direction: column;
+  align-items: center; 
+  justify-content: center;
+}
+
+.qr h3 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin-bottom: 0.2em;
+  letter-spacing: -0.5px;
+}
+
+.qr p {
+  color: #64748b;
+  margin-bottom: 1.5em;
+}
+
+#qrCode {
+  margin-top: 8px;
+  width: 160px;
+  height: 160px;
+  display: inline-block;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px #2563eb11;
+  background: #f1f5f9;
+  border: 2px solid #2563eb22;
+}
+
+#qrCode.fade-in {
+  animation: fadeIn 1s;
+}
+@keyframes fadeIn {
+  from { opacity: 0;}
+  to { opacity: 1;}
+}
+
+/* Animación de tarjetas */
+.card.bounce {
+  animation: bounce 0.6s;
+}
+@keyframes bounce {
+  0% { transform: scale(1);}
+  30% { transform: scale(1.1);}
+  60% { transform: scale(0.95);}
+  100% { transform: scale(1);}
+}
+
+/* Modal */
+#modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0; top: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.2);
+  align-items: center; justify-content: center;
+  transition: opacity 0.3s;
+  opacity: 0;
+}
+#modal.show { opacity: 1; display: flex;}
+.modal-content {
+  background: #b5dfd9;
+  border-radius: 16px;
+  padding: 2rem;
+  min-width: 320px;
+  box-shadow: 0 8px 32px #2563eb22;
+  position: relative;
+  animation: modalIn 0.3s;
+}
+@keyframes modalIn {
+  from { transform: translateY(-40px) scale(0.95);}
+  to { transform: translateY(0) scale(1);}
+}
+.close {
+  position: absolute;
+  right: 1rem; top: 1rem;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #bde7c4;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, #053010 60%, #b9e0b1 100%);
+  color: #fff;
+  padding: 14px 32px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 1rem;
+  box-shadow: 0 4px 24px #9cec9f6a;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 2000;
+}
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .container { max-width: 98vw; padding: 12px 2vw 32px 2vw; }
+  .stats { flex-direction: column; gap: 16px; }
+  .card { min-width: 0; width: 100%; }
+  .qr { max-width: 98vw; }
+}
+
+#logoutBtn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+#logoutBtn:hover {
+  background: #b91c1c;
+}

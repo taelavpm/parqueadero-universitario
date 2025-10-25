@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parqueadero Universitario</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    // === Config Firebase (tu config) ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyCau8qNx28aSmNBhYUd07L9CrZ-ksDRku0",
+      authDomain: "parqueadero-ucundinamarca.firebaseapp.com",
+      projectId: "parqueadero-ucundinamarca",
+      storageBucket: "parqueadero-ucundinamarca.appspot.com",
+      messagingSenderId: "831833413121",
+      appId: "1:831833413121:web:7bc6b64680adf3937fd200",
+      measurementId: "G-NF8T14J02L"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // === Variables locales ===
+    let currentUser = null;
+    // id_usuario en MySQL (lo devuelve /users). Lo guardamos en localStorage para no pedirlo cada vez.
+    let mysqlUserId = localStorage.getItem("mysqlUserId") || null;
+    // URL del backend (cambiar a producción cuando despliegues)
+    const BACKEND_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://tu-backend-url-production.com';
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+
+      // DOM events (botones)
+      document.getElementById("btnApartar").addEventListener("click", apartar);
+      document.getElementById("cancelarReservaBtn").addEventListener("click", cancelarReserva);
+      document.getElementById("verHistorialBtn").addEventListener("click", verHistorial);
+      document.getElementById("logoutBtn").addEventListener("click", () => auth.signOut());
+
+      // Escuchar estado de auth
+      auth.onAuthStateChanged(async (user) => {
+        currentUser = user;
+        if (user) {
+          document.getElementById("authSection").style.display = "none";
+          document.getElementById("appSection").style.display = "block";
+
+          // Registrar/obtener usuario en MySQL
+          if (!mysqlUserId) {
+            try {
+              const res = await fetch(`${BACKEND_URL}/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uid_firebase: user.uid,
+                  nombre: user.displayName || null,
+                  email: user.email || null
+                })
+              });
+              const json = await res.json();
+              if (res.ok) {
+                mysqlUserId = json.id;
+                localStorage.setItem("mysqlUserId", mysqlUserId);
+                console.log("MySQL user id:", mysqlUserId);
+              } else {
+                console.error("Error registrando usuario en MySQL:", json);
+                alert("Error registrando usuario en MySQL. Revisa la consola.");
+              }
+            } catch (e) {
+              console.error("Error registrando usuario en MySQL:", e);
+              alert("Error de conexión con el backend. Revisa si el servidor está corriendo.");
+            }
+          }
+
+          cargarReservaActiva();
+          escucharCupos();
+          revisarReservas();
+        } else {
+          document.getElementById("authSection").style.display = "block";
+          document.getElementById("appSection").style.display = "none";
+          mysqlUserId = null;
+          localStorage.removeItem("mysqlUserId");
+        }
+      });
+
+      // Login form
+      document.getElementById("loginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = e.target.email.value.trim();
+        const password = e.target.password.value.trim();
+        try {
+          await auth.signInWithEmailAndPassword(email, password);
+          e.target.reset();
+        } catch (err) {
+          alert("Error al iniciar sesión: " + err.message);
+        }
+      });
+
+      // Register button
+      document.getElementById("registerBtn").addEventListener("click", async () => {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value.trim();
+        if (!email || !password) {
+          alert("Por favor ingresa email y contraseña");
+          return;
+        }
+        try {
+          await auth.createUserWithEmailAndPassword(email, password);
+          alert("Usuario registrado. Ya puedes iniciar sesión.");
+          document.getElementById("loginForm").reset();
+        } catch (err) {
+          alert("Error al registrar: " + err.message);
+        }
+      });
+
+      // Recuperar contraseña
+      window.resetPassword = function () {
+        const email = document.getElementById("email").value.trim();
+        if (!email) return alert("Por favor ingresa tu correo.");
+        auth.sendPasswordResetEmail(email)
+          .then(() => alert("Te enviamos un enlace para restablecer tu contraseña."))
+          .catch(err => alert("Error: " + err.message));
+      };
+    });
+
+    // ---------- Firestore helpers (mantengo para que Firebase siga funcionando) ----------
+    function escucharCupos() {
+      db.collection("cupos").doc("general").onSnapshot(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          document.getElementById("disponiblesCarro").textContent = data.carros ?? 0;
+          document.getElementById("disponiblesMoto").textContent = data.motos ?? 0;
+          document.getElementById("reservados").textContent = data.reservados ?? 0;
+        }
+      });
+    }
+
+    // ---------- Reservar (Firebase + MySQL) ----------
+    async function apartar() {
+      if (!currentUser) return alert("Debes iniciar sesión para reservar");
+      if (!mysqlUserId) return alert("Error: usuario no registrado en MySQL aún. Recarga la página.");
+
+      const tipo = document.getElementById("tipoVehiculo").value;
+      const fecha = document.getElementById("fechaReserva").value;
+      const placa = document.getElementById("placaVehiculo").value.trim().toUpperCase();
+      const duracion = parseInt(document.getElementById("duracionHoras").value);
+
+      if (!fecha || !placa || !duracion) return alert("Debes ingresar fecha, placa y duración");
+
+      // Verificar en Firebase si tiene reserva activa (igual regla)
+      const reservaRef = db.collection("reservas").doc(currentUser.uid);
+      const cuposRef = db.collection("cupos").doc("general");
+
+      try {
+        await db.runTransaction(async (transaction) => {
+          const cuposDoc = await transaction.get(cuposRef);
+          if (!cuposDoc.exists) throw "No hay datos de cupos";
+          const cupos = cuposDoc.data();
+          const disponibles = tipo === "carro" ? (cupos.carros ?? 0) : (cupos.motos ?? 0);
+          if (disponibles <= 0) throw "No hay cupos disponibles para " + tipo;
+
+          const reservaDoc = await transaction.get(reservaRef);
+          if (reservaDoc.exists && reservaDoc.data().estado === "activo") {
+            throw "Ya tienes una reserva activa";
+          }
+
+          // Actualizar cupos en Firestore y crear reserva Firestore
+          const nuevosCupos = {};
+          if (tipo === "carro") nuevosCupos.carros = (cupos.carros ?? 0) - 1;
+          else nuevosCupos.motos = (cupos.motos ?? 0) - 1;
+          nuevosCupos.reservados = (cupos.reservados ?? 0) + 1;
+
+          transaction.update(cuposRef, nuevosCupos);
+          transaction.set(reservaRef, {
+            tipoVehiculo: tipo,
+            placa: placa,
+            fecha: fecha,
+            duracion: duracion,
+            horaInicio: new Date(fecha).getTime(),
+            horaFin: new Date(fecha).getTime() + duracion * 3600 * 1000,
+            estado: "activo",
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+
+        alert("Reserva creada con éxito");
+
+        // --- Enviar a MySQL (backend) ---
+        try {
+          const res = await fetch(`${BACKEND_URL}/reservas`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: mysqlUserId,
+              tipoVehiculo: tipo,
+              placa: placa,
+              fecha: new Date(fecha).toISOString().slice(0,19).replace('T',' '),
+              duracion: duracion
+            })
+          });
+          const json = await res.json();
+          if (!res.ok) {
+            console.error("Error MySQL:", json);
+            // No revertimos Firestore (ya funciona), solo notificamos
+            alert("La reserva se creó pero hubo un error guardando en MySQL: " + (json.error || JSON.stringify(json)));
+          } else {
+            console.log("✅ Guardado en MySQL:", json);
+          }
+        } catch (err) {
+          console.error("Fetch error:", err);
+          alert("Reserva creada, pero no se pudo guardar en MySQL (revisa backend).");
+        }
+
+        // actualizar UI
+        cargarReservaActiva();
+        document.getElementById("fechaReserva").value = "";
+        document.getElementById("placaVehiculo").value = "";
+
+      } catch (error) {
+        alert(error);
+      }
+    }
+
+    // Cargar reserva activa (desde Firestore) y mostrar QR
+    async function cargarReservaActiva() {
+      if (!currentUser) return;
+      const doc = await db.collection("reservas").doc(currentUser.uid).get();
+      const qrImg = document.getElementById("qrCode");
+      const qrText = document.getElementById("qrText");
+      const fechaReservaActiva = document.getElementById("fechaReservaActiva");
+      const cancelarBtn = document.getElementById("cancelarReservaBtn");
+
+      if (doc.exists && doc.data().estado === "activo") {
+        const data = doc.data();
+        const inicio = new Date(data.horaInicio).toLocaleString();
+        const fin = new Date(data.horaFin).toLocaleString();
+
+        qrText.textContent = `Reserva activa (${data.tipoVehiculo}) - Placa: ${data.placa}`;
+        fechaReservaActiva.textContent = `Inicio: ${inicio} | Fin: ${fin}`;
+
+        const qrData = `${window.location.origin}/reserva.html?tipo=${encodeURIComponent(data.tipoVehiculo)}&fecha=${encodeURIComponent(data.fecha)}&placa=${encodeURIComponent(data.placa)}`;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrData)}&size=200x200`;
+
+        qrImg.src = qrUrl;
+        qrImg.style.display = "block";
+        cancelarBtn.style.display = "inline-block";
+      } else {
+        qrText.textContent = "No tienes reservas activas.";
+        fechaReservaActiva.textContent = "";
+        qrImg.style.display = "none";
+        cancelarBtn.style.display = "none";
+      }
+    }
+
+    // Cancelar reserva: Firestore + MySQL
+    async function cancelarReserva() {
+      if (!currentUser) return;
+      const reservaRef = db.collection("reservas").doc(currentUser.uid);
+      const cuposRef = db.collection("cupos").doc("general");
+
+      try {
+        await db.runTransaction(async (transaction) => {
+          const reservaDoc = await transaction.get(reservaRef);
+          if (!reservaDoc.exists || reservaDoc.data().estado !== "activo") throw "No tienes reserva activa para cancelar";
+          const reserva = reservaDoc.data();
+
+          const cuposDoc = await transaction.get(cuposRef);
+          if (!cuposDoc.exists) throw "No hay datos de cupos";
+          const cupos = cuposDoc.data();
+
+          const nuevosCupos = {};
+          if (reserva.tipoVehiculo === "carro") nuevosCupos.carros = (cupos.carros ?? 0) + 1;
+          else nuevosCupos.motos = (cupos.motos ?? 0) + 1;
+          nuevosCupos.reservados = (cupos.reservados ?? 1) - 1;
+
+          transaction.update(cuposRef, nuevosCupos);
+          transaction.update(reservaRef, { estado: "cancelado" });
+        });
+
+        // Cancelar en MySQL: buscamos la reserva activa del usuario y la cancelamos (si existe)
+        try {
+          const res = await fetch(`${BACKEND_URL}/reservas/${mysqlUserId}`);
+          const rows = await res.json();
+          // buscar la primera activa
+          const activa = rows.find(r => r.estado === "Activa");
+          if (activa) {
+            await fetch(`${BACKEND_URL}/reservas/${activa.id}/cancel`, { method: "POST" });
+          }
+        } catch (e) {
+          console.error("Error cancelando en MySQL:", e);
+        }
+
+        alert("Reserva cancelada");
+        cargarReservaActiva();
+
+      } catch (error) {
+        alert(error);
+      }
+    }
+
+    // Revisar reservas vencidas (mantengo comportamiento con Firestore)
+    async function revisarReservas() {
+      if (!currentUser) return;
+      const reservaRef = db.collection("reservas").doc(currentUser.uid);
+      const docSnap = await reservaRef.get();
+      if (docSnap.exists) {
+        const data = docSnap.data();
+        if (data.estado === "activo" && Date.now() > data.horaFin) {
+          await reservaRef.update({ estado: "finalizado" });
+          alert("Tu reserva ha finalizado automáticamente.");
+          cargarReservaActiva();
+        }
+      }
+    }
+
+    // Ver historial (desde MySQL para tener historial real)
+    async function verHistorial() {
+      if (!mysqlUserId) return alert("Usuario MySQL no registrado.");
+      try {
+        const res = await fetch(`${BACKEND_URL}/reservas/${mysqlUserId}`);
+        const rows = await res.json();
+        let html = "";
+        if (!rows || rows.length === 0) html = "<p>No tienes reservas registradas.</p>";
+        else {
+          html = `<table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:6px;">ID</th>
+                <th style="text-align:left;padding:6px;">Tipo</th>
+                <th style="text-align:left;padding:6px;">Placa</th>
+                <th style="text-align:left;padding:6px;">Fecha</th>
+                <th style="text-align:left;padding:6px;">Duración</th>
+                <th style="text-align:left;padding:6px;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td style="padding:6px;">${r.id}</td>
+                  <td style="padding:6px;">${r.tipoVehiculo}</td>
+                  <td style="padding:6px;">${r.placa}</td>
+                  <td style="padding:6px;">${new Date(r.fecha).toLocaleString()}</td>
+                  <td style="padding:6px;">${r.duracion}</td>
+                  <td style="padding:6px;">${r.estado || 'Activa'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+        }
+        mostrarModal("Historial de Reservas (MySQL)", html);
+      } catch (e) {
+        console.error(e);
+        alert("Error cargando historial desde MySQL.");
+      }
+    }
+
+    // Modal / toasts
+    function mostrarModal(titulo, contenido) {
+      let modal = document.getElementById("modal");
+      if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "modal";
+        modal.innerHTML = `
+          <div class="modal-content">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <h2 id="modal-title"></h2>
+            <div id="modal-body"></div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+      document.getElementById("modal-title").textContent = titulo;
+      document.getElementById("modal-body").innerHTML = contenido;
+      modal.style.display = "flex";
+      setTimeout(() => modal.classList.add("show"), 10);
+    }
+    function cerrarModal() {
+      const modal = document.getElementById("modal");
+      if (modal) {
+        modal.classList.remove("show");
+        setTimeout(() => (modal.style.display = "none"), 300);
+      }
+    }
+
+    // Exponer funciones globales por si se llaman desde HTML
+    window.resetPassword = window.resetPassword;
+    window.verHistorial = verHistorial;
+    window.cargarReservaActiva = cargarReservaActiva;
+    window.cancelarReserva = cancelarReserva;
+  </script>
+</head>
+<body>
+  <div class="container">
+    <section id="authSection" style="max-width:400px;margin:auto;">
+      <h1>Iniciar sesión o registrarse</h1>
+      <form id="loginForm" style="display:flex;flex-direction:column;gap:12px;">
+        <input type="email" id="email" placeholder="Correo electrónico" required />
+        <input type="password" id="password" placeholder="Contraseña" required />
+        <button type="submit" class="primary">Iniciar sesión</button>
+      </form>
+
+      <!-- Enlace para recuperar contraseña -->
+      <p style="margin-top:10px;text-align:center;">
+        <a href="#" onclick="resetPassword()" style="color:#acf4ad;text-decoration:none;font-size:0.9em;">
+          ¿Olvidaste tu contraseña?
+        </a>
+      </p>
+
+      <button id="registerBtn" style="margin-top:12px;">Registrarse</button>
+    </section>
+
+    <section id="appSection" style="display:none;">
+      <h1>Parqueadero Universitario</h1>
+      <button id="logoutBtn" style="float:right;margin-bottom:12px;">Cerrar sesión</button>
+
+      <p style="color:#183323;font-size:1.15em;margin-bottom:1.5em;">
+        Reserva tu espacio para carro o moto y asegura tu lugar en el campus.
+      </p>
+
+      <div class="stats">
+        <div class="card green"><i data-lucide="car"></i><p>Carros disponibles</p><span id="disponiblesCarro">0</span></div>
+        <div class="card green"><i data-lucide="bike"></i><p>Motos disponibles</p><span id="disponiblesMoto">0</span></div>
+        <div class="card orange"><i data-lucide="calendar"></i><p>Reservados</p><span id="reservados">0</span></div>
+      </div>
+
+      <div class="tipo-vehiculo" style="display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:18px;">
+        <label for="tipoVehiculo" style="font-weight:500;">Tipo de vehículo:</label>
+        <select id="tipoVehiculo" style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;">
+          <option value="carro">Carro</option>
+          <option value="moto">Moto</option>
+        </select>
+      </div>
+
+      <div class="placa-vehiculo" style="display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:18px;">
+        <label for="placaVehiculo" style="font-weight:500;">Placa:</label>
+        <input type="text" id="placaVehiculo" placeholder="ABC123" maxlength="6" style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;" required />
+      </div>
+
+      <div class="reserva-fecha" style="display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:18px;">
+        <label for="fechaReserva" style="font-weight:500;">Fecha y hora inicio:</label>
+        <input type="datetime-local" id="fechaReserva" required style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;" />
+      </div>
+
+      <div class="duracion" style="display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:18px;">
+        <label for="duracionHoras" style="font-weight:500;">Duración (horas):</label>
+        <input type="number" id="duracionHoras" min="1" max="24" value="1" style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;" />
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="btnApartar">Apartar espacio</button>
+        <button id="cancelarReservaBtn" style="display:none;">Cancelar reserva</button>
+        <button id="verHistorialBtn">Historial de reservas</button>
+      </div>
+
+      <div class="qr">
+        <h3>Tu reserva activa</h3>
+        <p id="qrText">Muestra este código al ingresar al parqueadero</p>
+        <img id="qrCode" src="" alt="QR Code" style="display:none;" />
+        <div id="fechaReservaActiva" style="margin-top:12px;color:#084210;font-weight:500;"></div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
